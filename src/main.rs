@@ -1,9 +1,5 @@
-use actix_web::{middleware, web, App, HttpRequest, HttpServer};
-
-async fn index(req: HttpRequest) -> &'static str {
-    println!("REQ: {req:?}");
-    "Hello world!"
-}
+use actix_web::{middleware, App, HttpServer};
+use chatgpt_agent::app_config::config_app;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -13,10 +9,9 @@ async fn main() -> std::io::Result<()> {
 
     HttpServer::new(|| {
         App::new()
+            .configure(config_app)
             // enable logger
             .wrap(middleware::Logger::default())
-            .service(web::resource("/index.html").to(|| async { "Hello world!" }))
-            .service(web::resource("/").to(index))
     })
     .bind(("127.0.0.1", 8080))?
     .run()
@@ -26,12 +21,13 @@ async fn main() -> std::io::Result<()> {
 #[cfg(test)]
 mod tests {
     use actix_web::{body::to_bytes, dev::Service, http, test, web, App, Error};
+    use chatgpt_agent::handlers::index;
 
     use super::*;
 
     #[actix_web::test]
     async fn test_index() -> Result<(), Error> {
-        let app = App::new().route("/", web::get().to(index));
+        let app = App::new().route("/", web::get().to(index::index));
         let app = test::init_service(app).await;
 
         let req = test::TestRequest::get().uri("/").to_request();
