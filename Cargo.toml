@@ -9,7 +9,11 @@ edition = "2021"
 actix-web = "4"
 dotenv = "0.15.0"
 env_logger = "0.10.0"
+json = "0.12.4"
 log = "0.4.19"
+reqwest = { version = "0.11.18", features = ["json"] }
 serde = { version = "1.0.164", features = ["derive"] }
 serde_json = "1.0.99"
 sqlx = { version = "0.6.3", features = [ "runtime-tokio-native-tls" , "postgres", "chrono" ] }
+tokio = "1.29.0"
+url = "2.4.0"

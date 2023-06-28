@@ -1,11 +1,12 @@
-use actix_web::{HttpRequest, web, Error, HttpResponse};
-use serde_json::{Value};
-use sqlx::PgPool;
+use actix_web::{error, HttpRequest, web, Error, HttpResponse};
 
-use crate::dao::sys_user_token::get_by_local_token;
+use crate::{dao::{sys_user_token::get_by_local_token, sys_model_request::save_token}, MyData, OpenAiChat};
 
-pub async fn chat_to(data: web::Data<PgPool>, req: HttpRequest, content: web::Json<Value>) -> Result<HttpResponse, Error> {
-    println!("{req:?}");
+pub async fn chat_to(data: web::Data<MyData>, req: HttpRequest, body: web::Bytes) -> Result<HttpResponse, Error> {
+    log::debug!("{req:?}");
+    // println!("{content:?}");
+
+    // 认证
     let auth = match req.headers().get("Authorization").map(| d | d.to_str()) {
         Some(data) => match data {
             Ok(data) => data,
@@ -18,7 +19,8 @@ pub async fn chat_to(data: web::Data<PgPool>, req: HttpRequest, content: web::Js
 
     let auth = auth["Bearer".len()..].trim();
 
-    let user = get_by_local_token(&data, auth.to_string()).await;
+    // 获取 token
+    let user = get_by_local_token(&data.pool, auth.to_string()).await;
 
     let user = match user {
         Some(user) => user,
@@ -27,7 +29,33 @@ pub async fn chat_to(data: web::Data<PgPool>, req: HttpRequest, content: web::Js
 
     let _token = user.gpt_token;
 
-    println!("{:?}", _token);
+    let body = &serde_json::from_str::<serde_json::Value>(std::str::from_utf8(&body).expect("json data error...")).expect("not a json");
+    // let body = json::parse(std::str::from_utf8(&body).unwrap()).expect("body is not a json");
 
-    Ok(HttpResponse::Ok().finish())
+    log::debug!("receved user send request: {body:#?}");
+
+    let res = data.client.post(data.target_url.clone())
+        .bearer_auth(_token)
+        .json(body)
+        .send()
+        .await
+        .map_err(error::ErrorInternalServerError)?;
+
+    let mut client_resp = HttpResponse::build(res.status());
+
+    let json: serde_json::Value = res.json().await.expect("deserilize json error, openai returns invalid json");
+    
+    log::debug!("{json:#?}");
+    let chat: OpenAiChat = match serde_json::from_value(json.clone()) {
+        Ok(j) => j,
+        Err(e) => {
+            log::error!("{e}");
+            return Ok(client_resp.json(json));
+        },
+    };
+    log::debug!("{chat:#?}");
+
+    save_token(&data.pool, chat.id, chat.model, chat.usage).await;
+
+    Ok(client_resp.json(json))
 }

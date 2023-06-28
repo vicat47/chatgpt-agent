@@ -1,9 +1,10 @@
 use std::env;
 
 use actix_web::{middleware, App, HttpServer, web};
-use chatgpt_agent::app_config::config_app;
+use chatgpt_agent::{app_config::config_app, MyData};
 use sqlx::{postgres::PgPoolOptions, types::chrono::{DateTime, Local}};
 use dotenv::dotenv;
+use url::Url;
 
 #[derive(Debug, sqlx::FromRow)]
 pub struct SysUserToken {
@@ -17,19 +18,36 @@ pub struct SysUserToken {
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     dotenv().ok();
-    env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
+    env_logger::init_from_env(env_logger::Env::new().default_filter_or("debug"));
 
     log::info!("starting HTTP server at http://localhost:8080");
 
     let pool = PgPoolOptions::new()
         .max_connections(5)
-        .connect(&env::var("DATABASE_URL").unwrap()).await.unwrap();
+        .connect(&env::var("DATABASE_URL").expect(r#"environment variable "DATABASE_URL" not exists"#)).await.unwrap();
 
-    let shared_data = web::Data::new(pool);
+    let openai_url = env::var("OPENAI_URL").expect(r#"environment variable "OPENAI_URL" not exists"#);
+    let openai_url = Url::parse(&openai_url).expect("openai url error");
+
+    assert!(openai_url.host_str() == Some("api.openai.com"), "invalid target address");
+    
+    let client_builder = reqwest::Client::builder();
+    let client_builder = match env::var("OPENAI_PROXY") {
+        Ok(proxy) => client_builder.proxy(reqwest::Proxy::all(proxy).expect("proxy config error")),
+        Err(_) => {
+            log::warn!("proxy not set, ensure your network...");
+            client_builder
+        }
+    };
+    let client = client_builder.build().expect("reqwest client build error");
 
     HttpServer::new(move || {
         App::new()
-            .app_data(shared_data.clone())
+            .app_data(web::Data::new(MyData {
+                pool: pool.clone(),
+                client: client.clone(),
+                target_url: openai_url.clone(),
+            }))
             .configure(config_app)
             // enable logger
             .wrap(middleware::Logger::default())
