@@ -25,11 +25,6 @@ async fn main() -> std::io::Result<()> {
         .max_connections(5)
         .connect(&env::var("DATABASE_URL").unwrap()).await.unwrap();
 
-    // Make a simple query to return the given parameter (use a question mark `?` instead of `$1` for MySQL)
-    let row = sqlx::query_as::<_, SysUserToken>(r#"SELECT id, name, local_token, gpt_token, create_time from "sys_user_token" where local_token=$1 "#)
-        .bind("123123")
-        .fetch_one(&pool).await.unwrap();
-
     let shared_data = web::Data::new(pool);
 
     HttpServer::new(move || {

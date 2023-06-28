@@ -1,10 +1,13 @@
 use actix_web::web;
 
-use crate::handlers::{parts, products, index};
+use crate::handlers::{parts, products, index, chat};
 
 pub fn config_app(cfg: &mut web::ServiceConfig) {
-    // cfg.service(web::resource("/index.html").to(|| async { "Hello world!" }));
-    // cfg.service(web::resource("/").to(index::index));
+    cfg.service(web::resource("/index.html").to(|| async { "Hello world!" }));
+    cfg.service(web::resource("/").to(index::index));
+    cfg.service(web::scope("/chat")
+            .service(web::resource("")
+                .route(web::post().to(chat::chat_to))));
     // domain includes: /products/{product_id}/parts/{part_id}
     cfg.service(
         web::scope("/products")

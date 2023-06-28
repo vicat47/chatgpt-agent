@@ -1,1 +1,5 @@
 # chatgpt-agent
+
+```
+POST /chat 
+```
