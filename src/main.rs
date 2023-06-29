@@ -1,7 +1,7 @@
 use std::env;
 
 use actix_web::{middleware, App, HttpServer, web};
-use chatgpt_agent::{app_config::config_app, MyData};
+use chatgpt_agent::{app_config::config_app, MyData, DEFAULT_CHATGPT_URL};
 use sqlx::{postgres::PgPoolOptions, types::chrono::{DateTime, Local}};
 use dotenv::dotenv;
 use url::Url;
@@ -20,13 +20,31 @@ async fn main() -> std::io::Result<()> {
     dotenv().ok();
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("debug"));
 
-    log::info!("starting HTTP server at http://localhost:8080");
+    let db_url=format!("postgres://{}:{}@{}/{}", 
+        env::var("DATABASE_USERNAME").unwrap_or_else(|_| {
+            log::warn!(r#"will use default username "postgres""#);
+            "postgres".to_string()
+        }),
+        env::var("DATABASE_PASSWORD").expect(r#"environment variable "DATABASE_PASSWORD" not exists"#),
+        env::var("DATABASE_ADDRESS").unwrap_or_else(|_| {
+            log::warn!(r#"will use default postgres address "database:5432""#);
+            "database:5432".to_string()
+        }),
+        env::var("DATABASE_NAME").unwrap_or_else(|_|  {
+            log::warn!(r#"will use default postgres database "postgres""#);
+            "postgres".to_string()
+        })
+    );
 
     let pool = PgPoolOptions::new()
         .max_connections(5)
-        .connect(&env::var("DATABASE_URL").expect(r#"environment variable "DATABASE_URL" not exists"#)).await.unwrap();
+        .connect(&db_url).await.expect("database init failed");
 
-    let openai_url = env::var("OPENAI_URL").expect(r#"environment variable "OPENAI_URL" not exists"#);
+    let openai_url = env::var("OPENAI_URL").unwrap_or_else(|_|  {
+        let default = DEFAULT_CHATGPT_URL.to_string();
+        log::warn!(r#"will use default open ai api url "{}""#, default);
+        default
+    });
     let openai_url = Url::parse(&openai_url).expect("openai url error");
 
     assert!(openai_url.host_str() == Some("api.openai.com"), "invalid target address");
@@ -41,6 +59,8 @@ async fn main() -> std::io::Result<()> {
     };
     let client = client_builder.build().expect("reqwest client build error");
 
+    log::info!("starting HTTP server at http://localhost:8080");
+
     HttpServer::new(move || {
         App::new()
             .app_data(web::Data::new(MyData {
@@ -52,7 +72,7 @@ async fn main() -> std::io::Result<()> {
             // enable logger
             .wrap(middleware::Logger::default())
     })
-    .bind(("127.0.0.1", 8080))?
+    .bind(("0.0.0.0", 8080))?
     .run()
     .await
 }

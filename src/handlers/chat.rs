@@ -1,31 +1,15 @@
 use actix_web::{error, HttpRequest, web, Error, HttpResponse};
 
-use crate::{dao::{sys_user_token::get_by_local_token, sys_model_request::save_token}, MyData, OpenAiChat};
+use crate::{dao::{sys_user_token::get_by_local_token, sys_model_request::save_token}, MyData, OpenAiChat, handlers::get_auth_token};
 
 pub async fn chat_to(data: web::Data<MyData>, req: HttpRequest, body: web::Bytes) -> Result<HttpResponse, Error> {
     log::debug!("{req:?}");
-    // println!("{content:?}");
 
-    // 认证
-    let auth = match req.headers().get("Authorization").map(| d | d.to_str()) {
-        Some(data) => match data {
-            Ok(data) => data,
-            Err(_) => panic!("no authorizaion"),
-        },
-        None => panic!("no authorization"),
-    };
-    assert!(auth.starts_with("Bearer"), "not a valid bearer token");
-    assert!(auth.len() > "Bearer".len() + 5, "not long enough");
-
-    let auth = auth["Bearer".len()..].trim();
+    let auth = get_auth_token(req)?;
 
     // 获取 token
-    let user = get_by_local_token(&data.pool, auth.to_string()).await;
-
-    let user = match user {
-        Some(user) => user,
-        None => panic!("no such user"),
-    };
+    let user = get_by_local_token(&data.pool, auth).await
+        .ok_or_else(|| actix_web::error::ErrorUnauthorized("token error"))?;
 
     let _token = user.gpt_token;
 
@@ -55,7 +39,7 @@ pub async fn chat_to(data: web::Data<MyData>, req: HttpRequest, body: web::Bytes
     };
     log::debug!("{chat:#?}");
 
-    save_token(&data.pool, chat.id, chat.model, chat.usage).await;
+    save_token(&data.pool, user.id, chat.id, chat.model, chat.usage).await;
 
     Ok(client_resp.json(json))
 }

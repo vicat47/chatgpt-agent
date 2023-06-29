@@ -1,6 +1,6 @@
 use sqlx::{PgPool, QueryBuilder, Postgres};
 
-use crate::{Usage, GROUP_CHAT_PRICE, CHAT_INPUT_SUFFIX, CHAT_OUTPUT_SUFFIX};
+use crate::{Usage, GROUP_CHAT_PRICE, CHAT_INPUT_SUFFIX, CHAT_OUTPUT_SUFFIX, SysModelRequest};
 
 use super::sys_config::get_config;
 
@@ -8,8 +8,8 @@ fn caculate_price(usage: Usage, in_price: f32, out_price:f32) -> f32 {
     usage.prompt_tokens as f32 * in_price / 1000.0 + usage.completion_tokens as f32 * out_price / 1000.0
 }
 
-pub async fn save_token(db: &PgPool, remote_id: String, model: String, usage: Usage) {
-    let mut query_builder: QueryBuilder<Postgres> = QueryBuilder::new(r#"INSERT INTO "sys_model_request"(remote_id, model, completion_tokens, prompt_tokens, total_tokens"#);
+pub async fn save_token(db: &PgPool, user_id: i32, remote_id: String, model: String, usage: Usage) {
+    let mut query_builder: QueryBuilder<Postgres> = QueryBuilder::new(r#"INSERT INTO "sys_model_request"(token_id, remote_id, model, completion_tokens, prompt_tokens, total_tokens"#);
 
     let input_price = get_config(db, GROUP_CHAT_PRICE.to_string(), format!("{model}{CHAT_INPUT_SUFFIX}"))
             .await
@@ -33,6 +33,7 @@ pub async fn save_token(db: &PgPool, remote_id: String, model: String, usage: Us
 
     let mut separated = query_builder.separated(", ");
 
+    separated.push_bind(user_id);
     separated.push_bind(remote_id);
     separated.push_bind(model);
     separated.push_bind(usage.completion_tokens);
@@ -53,4 +54,26 @@ pub async fn save_token(db: &PgPool, remote_id: String, model: String, usage: Us
         .await {
         log::error!("sql insert error...");
     }
+}
+
+/// 获取 7 天的请求数据
+pub async fn get_week_tokens(db: &PgPool, token: String) -> Vec<SysModelRequest> {
+    get_days_tokens(db, token, 7).await
+}
+
+async fn get_days_tokens(db: &PgPool, token: String, days: i32) -> Vec<SysModelRequest> {
+    sqlx::query_as::<_, SysModelRequest>(r#"
+        SELECT remote_id, model, total_tokens, price, timestamp
+        from "sys_model_request" r
+        left join "sys_user_token" t on r.token_id = t.id
+        where t.local_token = $1 and r."timestamp" >= now() - make_interval(days := $2)"#
+    )
+        .bind(token.clone())
+        .bind(days)
+        .fetch_all(db)
+        .await
+        .unwrap_or_else(|_| {
+            log::error!("database query error.. {token}:{days}");
+            Vec::default()
+        })
 }
