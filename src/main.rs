@@ -25,7 +25,10 @@ async fn main() -> std::io::Result<()> {
             log::warn!(r#"will use default username "postgres""#);
             "postgres".to_string()
         }),
-        env::var("DATABASE_PASSWORD").expect(r#"environment variable "DATABASE_PASSWORD" not exists"#),
+        env::var("DATABASE_PASSWORD").unwrap_or_else(|_| {
+            log::warn!(r#"will use default postgres password "postgres""#);
+            "postgres".to_string()
+        }),
         env::var("DATABASE_ADDRESS").unwrap_or_else(|_| {
             log::warn!(r#"will use default postgres address "database:5432""#);
             "database:5432".to_string()
