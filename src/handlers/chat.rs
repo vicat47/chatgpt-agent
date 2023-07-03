@@ -12,9 +12,8 @@ pub async fn chat_to(data: web::Data<MyData>, req: HttpRequest, body: web::Bytes
         .ok_or_else(|| actix_web::error::ErrorUnauthorized("token error"))?;
 
     let _token = user.gpt_token;
-
-    let body = &serde_json::from_str::<serde_json::Value>(std::str::from_utf8(&body).expect("json data error...")).expect("not a json");
-    // let body = json::parse(std::str::from_utf8(&body).unwrap()).expect("body is not a json");
+    let body = std::str::from_utf8(&body).map_err(|_| actix_web::error::ErrorBadRequest("invalid param"))?;
+    let body = &serde_json::from_str::<serde_json::Value>(body).map_err(|_| actix_web::error::ErrorBadRequest("not a json param"))?;
 
     log::debug!("receved user send request: {body:#?}");
 
@@ -27,7 +26,9 @@ pub async fn chat_to(data: web::Data<MyData>, req: HttpRequest, body: web::Bytes
 
     let mut client_resp = HttpResponse::build(res.status());
 
-    let json: serde_json::Value = res.json().await.expect("deserilize json error, openai returns invalid json");
+    let json: serde_json::Value = res.json()
+        .await
+        .map_err(|_| actix_web::error::ErrorBadRequest("deserilize json error, openai returns invalid json"))?;
     
     log::debug!("{json:#?}");
     let chat: OpenAiChat = match serde_json::from_value(json.clone()) {
