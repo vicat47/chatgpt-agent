@@ -30,8 +30,8 @@ async fn main() -> std::io::Result<()> {
             "postgres".to_string()
         }),
         env::var("DATABASE_ADDRESS").unwrap_or_else(|_| {
-            log::warn!(r#"will use default postgres address "database:5432""#);
-            "database:5432".to_string()
+            log::warn!(r#"will use default postgres address "127.0.0.1:5432""#);
+            "127.0.0.1:5432".to_string()
         }),
         env::var("DATABASE_NAME").unwrap_or_else(|_|  {
             log::warn!(r#"will use default postgres database "postgres""#);
