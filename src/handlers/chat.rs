@@ -1,6 +1,6 @@
 use actix_web::{error, HttpRequest, web, Error, HttpResponse};
 
-use crate::{dao::{sys_user_token::get_by_local_token, sys_model_request::save_token}, MyData, OpenAiChat, handlers::get_auth_token};
+use crate::{dao::{sys_user_token::get_by_local_token, sys_model_request::save_token, sys_config::check_model_config}, MyData, OpenAiChat, handlers::get_auth_token};
 
 pub async fn chat_to(data: web::Data<MyData>, req: HttpRequest, body: web::Bytes) -> Result<HttpResponse, Error> {
     log::debug!("{req:?}");
@@ -16,6 +16,12 @@ pub async fn chat_to(data: web::Data<MyData>, req: HttpRequest, body: web::Bytes
     let body = &serde_json::from_str::<serde_json::Value>(body).map_err(|_| actix_web::error::ErrorBadRequest("not a json param"))?;
 
     log::debug!("receved user send request: {body:#?}");
+
+    if let Some(model) = body.get("model").and_then(|m|m.as_str()) {
+        if check_model_config(&data.pool, model.to_string()).await <= 0 {
+            return Err(actix_web::error::ErrorBadRequest(format!("model {} not configed. please contact administrator", model)));
+        }
+    }
 
     let res = data.client.post(data.target_url.clone())
         .bearer_auth(_token)
