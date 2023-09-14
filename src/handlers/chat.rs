@@ -15,11 +15,11 @@ pub async fn chat_to(data: web::Data<MyData>, req: HttpRequest, body: web::Bytes
     let body = std::str::from_utf8(&body).map_err(|_| actix_web::error::ErrorBadRequest("invalid param"))?;
     let body = &serde_json::from_str::<serde_json::Value>(body).map_err(|_| actix_web::error::ErrorBadRequest("not a json param"))?;
 
-    log::debug!("receved user send request: {body:#?}");
+    log::debug!("received user send request: {body:#?}");
 
     if let Some(model) = body.get("model").and_then(|m|m.as_str()) {
         if check_model_config(&data.pool, model.to_string()).await <= 0 {
-            return Err(actix_web::error::ErrorBadRequest(format!("model {} not configed. please contact administrator", model)));
+            return Err(actix_web::error::ErrorBadRequest(format!("model {} not config. please contact administrator", model)));
         }
     }
 
@@ -34,7 +34,7 @@ pub async fn chat_to(data: web::Data<MyData>, req: HttpRequest, body: web::Bytes
 
     let json: serde_json::Value = res.json()
         .await
-        .map_err(|_| actix_web::error::ErrorBadRequest("deserilize json error, openai returns invalid json"))?;
+        .map_err(|_| actix_web::error::ErrorBadRequest("deserialize json error, openai returns invalid json"))?;
     
     log::debug!("{json:#?}");
     let chat: OpenAiChat = match serde_json::from_value(json.clone()) {

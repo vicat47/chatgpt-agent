@@ -13,7 +13,7 @@ pub async fn get_config(db: &PgPool, group: String, key: String) -> Option<Strin
     .await
     .map(|d| d.value)
     .unwrap_or_else(|_| {
-        log::error!("query {group}:{key} doesnot exists.");
+        log::error!("query {group}:{key} doesn't exists.");
         None
     })
 }
@@ -30,7 +30,7 @@ pub async fn check_model_config(db: &PgPool, model: String) -> i64 {
     .fetch_one(db)
     .await
     .unwrap_or_else(|_| {
-        log::error!("query {model} doesnot exists.");
+        log::error!("query {model} doesn't exists.");
         (0,)
     })
     .0

@@ -61,10 +61,7 @@ async fn main() -> std::io::Result<()> {
     });
     let openai_url = Url::parse(&openai_url).expect("openai url error");
 
-    assert!(
-        openai_url.host_str() == Some("api.openai.com"),
-        "invalid target address"
-    );
+    assert_eq!(openai_url.host_str(), Some("api.openai.com"), "invalid target address");
 
     let client_builder = reqwest::Client::builder();
     let client_builder = match env::var("OPENAI_PROXY") {
